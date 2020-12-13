@@ -31,6 +31,11 @@ type Bag struct {
 	Contents map[string]int
 }
 
+func (b *Bag) Contains(color string) bool {
+	_, ok := b.Contents[color]
+	return ok
+}
+
 func parseBagColor(color string) (string, error) {
 	matches := coloredBagsRE.FindStringSubmatch(color)
 
