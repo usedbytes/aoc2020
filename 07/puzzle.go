@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -103,6 +105,64 @@ func NewBag(rule string) (*Bag, error) {
 	return &bag, nil
 }
 
-func main() {
+func run() error {
+	if len(os.Args) != 2 {
+		return fmt.Errorf("Usage: %s INPUT", os.Args[0])
+	}
 
+	f, err := os.Open(os.Args[1])
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	bags := make(map[string]*Bag, 0)
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		bag, err := NewBag(line)
+		if err != nil {
+			return err
+		}
+
+		bags[bag.Color] = bag
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	fmt.Println("Parsed", len(bags))
+
+	containers := map[string]bool{
+		"shiny gold": true,
+	}
+	l := len(containers)
+	for {
+		for outerColor, outer := range bags {
+			for c, _ := range containers {
+				if outer.Contains(c) {
+					containers[outerColor] = true
+				}
+			}
+		}
+		if len(containers) == l {
+			break
+		}
+		l = len(containers)
+	}
+
+	fmt.Println("Number that can contain shiny gold:", len(containers)-1)
+
+	return nil
+}
+
+func main() {
+	err := run()
+	if err != nil {
+		fmt.Println("ERROR:", err)
+		os.Exit(1)
+	}
 }
