@@ -66,6 +66,21 @@ func (b *Bag) Contains(color string, rules *Rules) bool {
 	return false
 }
 
+func (b *Bag) NumContained(rules *Rules) int {
+	if len(b.Contents) == 0 {
+		return 0
+	}
+
+	num := 0
+	for innerColor, count := range b.Contents {
+		if b, ok := rules.GetColor(innerColor); ok {
+			num += (b.NumContained(rules) + 1) * count
+		}
+	}
+
+	return num
+}
+
 func parseBagColor(color string) (string, error) {
 	matches := coloredBagsRE.FindStringSubmatch(color)
 

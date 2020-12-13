@@ -188,3 +188,51 @@ func TestContains(t *testing.T) {
 		t.Errorf("%#v contains %s: %v", *white, color, res)
 	}
 }
+
+func TestNumContained(t *testing.T) {
+	white := &Bag{
+		Color: "bright white",
+		Contents: map[string]int{
+			"muted yellow": 1,
+		},
+	}
+
+	yellow := &Bag{
+		Color:    "muted yellow",
+		Contents: map[string]int{},
+	}
+
+	red := &Bag{
+		Color:    "light red",
+		Contents: map[string]int{},
+	}
+
+	rules := &Rules{
+		Bags: map[string]*Bag{
+			"bright white": white,
+			"muted yellow": yellow,
+			"light red":    red,
+		},
+	}
+
+	num := white.NumContained(rules)
+	if num != 1 {
+		t.Errorf("%#v numContained: %v", *white, num)
+	}
+
+	num = yellow.NumContained(rules)
+	if num != 0 {
+		t.Errorf("%#v numContained: %v", *yellow, num)
+	}
+
+	yellow.Contents["light red"] = 7
+	num = white.NumContained(rules)
+	if num != 8 {
+		t.Errorf("%#v numContained: %v", *white, num)
+	}
+
+	num = yellow.NumContained(rules)
+	if num != 7 {
+		t.Errorf("%#v numContained: %v", *yellow, num)
+	}
+}
