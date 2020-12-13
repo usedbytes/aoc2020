@@ -53,16 +53,7 @@ func (insn Instruction) Execute(on *VM) {
 }
 
 func (insn Instruction) String() string {
-	switch insn.Opcode {
-	case "acc", "jmp":
-		return fmt.Sprintf("%s %d", insn.Opcode, insn.Arg)
-	case "nop":
-		return fmt.Sprintf("%s", insn.Opcode)
-	default:
-		panic(insn.Opcode)
-	}
-
-	return ""
+	return fmt.Sprintf("%s %d", insn.Opcode, insn.Arg)
 }
 
 func ParseInstruction(s string) (Instruction, error) {
@@ -86,6 +77,33 @@ type Program struct {
 	Instructions []Instruction
 }
 
+type Tracer struct {
+	Program *Program
+	Indices []int
+	Visited map[int]bool
+}
+
+func (t *Tracer) Reset() {
+	t.Indices = t.Indices[:0]
+	t.Visited = make(map[int]bool)
+}
+
+func (t *Tracer) Trace(vm *VM, insn *Instruction) bool {
+	if t.Visited[vm.PC] {
+		return true
+	}
+
+	t.Indices = append(t.Indices, vm.PC)
+	t.Visited[vm.PC] = true
+	return false
+}
+
+func (t *Tracer) Dump() {
+	for _, i := range t.Indices {
+		fmt.Println(t.Program.Instructions[i])
+	}
+}
+
 func run() error {
 	if len(os.Args) != 2 {
 		return fmt.Errorf("Usage: %s INPUT", os.Args[0])
@@ -101,16 +119,12 @@ func run() error {
 	program := &Program{
 		Instructions: make([]Instruction, 0, 100),
 	}
-
-	visited := make(map[int]bool)
-	bp := func(vm *VM, insn *Instruction) bool {
-		if visited[vm.PC] {
-			return true
-		}
-		visited[vm.PC] = true
-		return false
+	tracer := &Tracer{
+		Program: program,
+		Indices: make([]int, 0),
+		Visited: make(map[int]bool),
 	}
-	vm.Breakpoint = bp
+	vm.Breakpoint = func(vm *VM, insn *Instruction) bool { return tracer.Trace(vm, insn) }
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -130,13 +144,49 @@ func run() error {
 
 	fmt.Println("Parsed", len(program.Instructions))
 
+	// Initial run should loop
 	result := vm.Execute(program)
 	if result {
 		return fmt.Errorf("expected abnormal termination")
 	}
 	fmt.Println("Accumulator at breakpoint:", vm.Accumulator)
 
-	return nil
+	lastIdx := tracer.Indices[len(tracer.Indices)-1]
+	lastInsn := program.Instructions[lastIdx]
+	fmt.Println("Last instruction before repeat:", lastIdx, lastInsn)
+
+	if lastInsn.Opcode != "jmp" {
+		return fmt.Errorf("last instruction not a jmp?")
+	}
+
+	// Patch all jumps to nops, and vice versa
+	mapping := map[string]string{
+		"nop": "jmp",
+		"jmp": "nop",
+	}
+	for i := 0; i < len(program.Instructions); i++ {
+		insn := program.Instructions[i]
+		from := insn.Opcode
+		if to, ok := mapping[insn.Opcode]; ok {
+			insn.Opcode = to
+			program.Instructions[i] = insn
+
+			vm.Reset()
+			tracer.Reset()
+			result = vm.Execute(program)
+
+			if result {
+				fmt.Printf("Accumulator at normal termination (patched %s at %d): %d\n", from, i, vm.Accumulator)
+				return nil
+			}
+
+			// Still looped, so revert
+			insn.Opcode = from
+			program.Instructions[i] = insn
+		}
+	}
+
+	return fmt.Errorf("couldn't find a terminating case")
 }
 
 func main() {
