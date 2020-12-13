@@ -190,6 +190,9 @@ func run() error {
 
 	fmt.Println("Number that can contain shiny gold:", numContain)
 
+	shinyGold, _ := rules.GetColor("shiny gold")
+	fmt.Println("Number that shiny gold must contain:", shinyGold.NumContained(rules))
+
 	return nil
 }
 
