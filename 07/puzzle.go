@@ -23,6 +23,19 @@ var noOtherBagRE *regexp.Regexp = regexp.MustCompile(noOtherBagStr)
 var numberedOrNoneStr string = "((?:" + numberedBagStr + ")|(?:" + noOtherBagStr + "))"
 var numberedOrNoneRE *regexp.Regexp = regexp.MustCompile(numberedOrNoneStr)
 
+type Rules struct {
+	Bags map[string]*Bag
+}
+
+func (r *Rules) AddBag(b *Bag) {
+	r.Bags[b.Color] = b
+}
+
+func (r *Rules) GetColor(color string) (*Bag, bool) {
+	bag, ok := r.Bags[color]
+	return bag, ok
+}
+
 type NumberedBag struct {
 	Color string
 	Count int
@@ -33,9 +46,24 @@ type Bag struct {
 	Contents map[string]int
 }
 
-func (b *Bag) Contains(color string) bool {
-	_, ok := b.Contents[color]
-	return ok
+func (b *Bag) Contains(color string, rules *Rules) bool {
+	if len(b.Contents) == 0 {
+		return false
+	}
+
+	if _, ok := b.Contents[color]; ok {
+		return true
+	}
+
+	for innerColor := range b.Contents {
+		if b, ok := rules.GetColor(innerColor); ok {
+			if b.Contains(color, rules) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func parseBagColor(color string) (string, error) {
@@ -116,7 +144,9 @@ func run() error {
 	}
 	defer f.Close()
 
-	bags := make(map[string]*Bag, 0)
+	rules := &Rules{
+		Bags: make(map[string]*Bag, 0),
+	}
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -127,34 +157,23 @@ func run() error {
 			return err
 		}
 
-		bags[bag.Color] = bag
+		rules.AddBag(bag)
 	}
 
 	if err := scanner.Err(); err != nil {
 		return err
 	}
 
-	fmt.Println("Parsed", len(bags))
+	fmt.Println("Parsed", len(rules.Bags))
 
-	containers := map[string]bool{
-		"shiny gold": true,
-	}
-	l := len(containers)
-	for {
-		for outerColor, outer := range bags {
-			for c, _ := range containers {
-				if outer.Contains(c) {
-					containers[outerColor] = true
-				}
-			}
+	numContain := 0
+	for _, outer := range rules.Bags {
+		if outer.Contains("shiny gold", rules) {
+			numContain++
 		}
-		if len(containers) == l {
-			break
-		}
-		l = len(containers)
 	}
 
-	fmt.Println("Number that can contain shiny gold:", len(containers)-1)
+	fmt.Println("Number that can contain shiny gold:", numContain)
 
 	return nil
 }

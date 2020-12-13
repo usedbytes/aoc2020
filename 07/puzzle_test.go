@@ -152,22 +152,39 @@ func TestParseBag(t *testing.T) {
 }
 
 func TestContains(t *testing.T) {
-	bag := &Bag{
+	white := &Bag{
 		Color: "bright white",
-		Contents: map[string]int {
+		Contents: map[string]int{
 			"muted yellow": 1,
 		},
 	}
 
-	color := "light red"
-	res := bag.Contains(color)
-	if res {
-		t.Errorf("%#v contains %s: %v", bag, color, res)
+	yellow := &Bag{
+		Color:    "muted yellow",
+		Contents: map[string]int{},
 	}
 
-	bag.Contents["light red"] = 7
-	res = bag.Contains(color)
+	rules := &Rules{
+		Bags: map[string]*Bag{
+			"bright white": white,
+			"muted yellow": yellow,
+		},
+	}
+
+	color := "light red"
+	res := white.Contains(color, rules)
+	if res {
+		t.Errorf("%#v contains %s: %v", *white, color, res)
+	}
+
+	yellow.Contents["light red"] = 7
+	res = yellow.Contains(color, rules)
 	if !res {
-		t.Errorf("%#v contains %s: %v", bag, color, res)
+		t.Errorf("%#v contains %s: %v", *white, color, res)
+	}
+
+	res = white.Contains(color, rules)
+	if !res {
+		t.Errorf("%#v contains %s: %v", *white, color, res)
 	}
 }
