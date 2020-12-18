@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 )
 
 func doLines(filename string, do func(line string)) error {
@@ -31,28 +32,44 @@ type Grid struct {
 	Next  [][]rune
 }
 
-func (g *Grid) CountAround(c, r int, val rune) int {
-	count := 0
-	for y := r - 1; y <= r+1; y++ {
+func (g *Grid) CastRay(fromX, fromY, dx, dy, maxSteps int) rune {
+	x, y := fromX, fromY
+	for steps := 0; maxSteps < 0 || steps < maxSteps; steps++ {
+		x, y = x+dx, y+dy
 		if y < 0 || y >= len(g.Cells) {
-			continue
+			return '.'
 		}
-
-		row := g.Cells[y]
-		for x := c - 1; x <= c+1; x++ {
-			if x < 0 || x >= len(row) {
-				continue
-			}
-			if x == c && y == r {
-				// Skip the target
-				continue
-			}
-
-			if row[x] == val {
-				count++
-			}
+		if x < 0 || x >= len(g.Cells[0]) {
+			return '.'
+		}
+		cell := g.Cells[y][x]
+		if cell != '.' {
+			return cell
 		}
 	}
+
+	return '.'
+}
+
+func (g *Grid) CountAround(c, r, distance int, val rune) int {
+	rays := [8][2]int{
+		{0, -1},
+		{1, -1},
+		{1, 0},
+		{1, 1},
+		{0, 1},
+		{-1, 1},
+		{-1, 0},
+		{-1, -1},
+	}
+	count := 0
+	for _, ray := range rays {
+		hit := g.CastRay(c, r, ray[0], ray[1], distance)
+		if hit == val {
+			count++
+		}
+	}
+
 	return count
 }
 
@@ -107,16 +124,33 @@ func run() error {
 
 	flux := true
 	occupied := 0
+
+	distance := 1
+	threshold := 4
+	if len(os.Args) > 2 {
+		d, err := strconv.Atoi(os.Args[2])
+		if err != nil {
+			return err
+		}
+		distance = d
+	}
+	if len(os.Args) > 3 {
+		t, err := strconv.Atoi(os.Args[3])
+		if err != nil {
+			return err
+		}
+		threshold = t
+	}
 	for flux {
 		for y := 0; y < len(grid.Cells); y++ {
 			for x := 0; x < len(grid.Cells[0]); x++ {
 				if grid.Cells[y][x] == '.' {
 					continue
 				} else {
-					count := grid.CountAround(x, y, '#')
+					count := grid.CountAround(x, y, distance, '#')
 					if grid.Cells[y][x] == 'L' && count == 0 {
 						grid.Next[y][x] = '#'
-					} else if grid.Cells[y][x] == '#' && count >= 4 {
+					} else if grid.Cells[y][x] == '#' && count >= threshold {
 						grid.Next[y][x] = 'L'
 					} else {
 						grid.Next[y][x] = grid.Cells[y][x]
