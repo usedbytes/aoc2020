@@ -33,38 +33,39 @@ func doLines(filename string, do func(line string) error) error {
 func run() error {
 	strs := strings.Split(os.Args[1], ",")
 
-	seq := make([]int, 0, 2020)
-	numTimes := make(map[int]int)
+	numTurns, err := strconv.Atoi(os.Args[2])
+	if err != nil {
+		return err
+	}
+
+	lastTimes := make(map[int]int)
 
 	turn := 1
+	prev := 0
+
 	for _, s := range strs {
 		n, err := strconv.Atoi(s)
 		if err != nil {
 			return err
 		}
 
-		seq = append(seq, n)
-		numTimes[n] = 1
+		lastTimes[n] = turn
+		prev = n
 		turn++
 	}
 
-	for ; turn <= 2020; turn++ {
-		prev := seq[len(seq)-1]
-		nT := numTimes[prev]
+	for ; turn <= numTurns; turn++ {
 		n := 0
-		if nT > 1 {
-			var i int
-			for i = len(seq) - 2; i >= 0 && seq[i] != prev; i-- {
-				// pass
-			}
-			lastTime := i + 1
-			n = len(seq) - lastTime
+		if lT, ok := lastTimes[prev]; ok {
+			n = (turn - 1) - lT
 		}
-		seq = append(seq, n)
-		numTimes[n]++
+		// Note: Only update the map _after_ we've calculated the gap
+		lastTimes[prev] = turn - 1
+
+		prev = n
 	}
 
-	fmt.Println(seq[len(seq)-1])
+	fmt.Println(prev)
 
 	return nil
 }
