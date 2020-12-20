@@ -329,8 +329,33 @@ type Gridder interface {
 	Range() [][2]int
 }
 
-func run() error {
+func apply(grid, next Gridder, ranges [][2]int, coords []int) {
+	dim := len(coords)
+	coords = append(coords, 0)
+	for x := ranges[dim][0] - 1; x <= ranges[dim][1]+1; x++ {
+		coords[dim] = x
 
+		if dim == grid.Dimensions()-1 {
+			current := grid.Get(coords, '.')
+			count := grid.CountAround(coords, '#', true)
+			if current == '#' {
+				if count == 2 || count == 3 {
+					next.Set(coords, '#')
+				} else {
+					next.Set(coords, '.')
+				}
+			} else if current == '.' {
+				if count == 3 {
+					next.Set(coords, '#')
+				}
+			}
+		} else {
+			apply(grid, next, ranges, coords)
+		}
+	}
+}
+
+func run() error {
 	grid := NewGrid(3, 0, 0, '.')
 
 	y := 0
@@ -349,35 +374,8 @@ func run() error {
 	for cycle := 0; cycle < 6; cycle++ {
 		ranges := grid.Range()
 		next := grid.Dup()
-		for z := ranges[0][0] - 1; z <= ranges[0][1]+1; z++ {
-			for y := ranges[1][0] - 1; y <= ranges[1][1]+1; y++ {
-				for x := ranges[2][0] - 1; x <= ranges[2][1]+1; x++ {
-					current := grid.Get([]int{z, y, x}, '.')
-					count := grid.CountAround([]int{z, y, x}, '#', true)
-					//action := "none"
-					if current == '#' {
-						if count == 2 || count == 3 {
-							next.Set([]int{z, y, x}, '#')
-							//action = "keep"
-						} else {
-							next.Set([]int{z, y, x}, '.')
-							//action = "kill"
-						}
-					} else if current == '.' {
-						if count == 3 {
-							next.Set([]int{z, y, x}, '#')
-							//action = "spawn"
-						}
-					}
-					//fmt.Printf("(%d, %d, %d) count: %d, action: %s\n", z, y, x, count, action)
-				}
-			}
-
-		}
+		apply(grid, next, ranges, nil)
 		grid = next
-		//fmt.Println("Cycle", cycle)
-		//fmt.Println(next.String())
-		//fmt.Println("-----")
 	}
 
 	fmt.Println(grid.Count('#'))
