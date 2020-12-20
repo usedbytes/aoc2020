@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 )
 
 func doLines(filename string, do func(line string) error) error {
@@ -356,14 +357,26 @@ func apply(grid, next Gridder, ranges [][2]int, coords []int) {
 }
 
 func run() error {
-	grid := NewGrid(3, 0, 0, '.')
+	dims := 3
+	if len(os.Args) > 2 {
+		var err error
+		dims, err = strconv.Atoi(os.Args[2])
+		if err != nil {
+			return err
+		}
+	}
 
-	y := 0
+	coords := make([]int, dims)
+	grid := NewGrid(dims, 0, 0, '.')
+
+	coords[len(coords)-2] = 0
+
 	if err := doLines(os.Args[1], func(line string) error {
 		for x, c := range []byte(line) {
-			grid.Set([]int{0, y, x}, c)
+			coords[len(coords)-1] = x
+			grid.Set(coords, c)
 		}
-		y++
+		coords[len(coords)-2]++
 		return nil
 	}); err != nil {
 		return err
