@@ -50,14 +50,12 @@ func max(a, b int) int {
 }
 
 type Grid1D struct {
-	// Range is [Min, Max)
 	Min, Max     int
 	Values       []byte
 	defaultValue byte
 }
 
 type GridND struct {
-	// Range is [Min, Max)
 	Dims         int
 	Min, Max     int
 	Values       []Gridder
@@ -131,10 +129,7 @@ func (g *Grid1D) Set(coords []int, val byte) {
 
 	x := coords[0]
 
-	//fmt.Printf("Grid%dD, Min: %d, Max: %d, Set(%v, %s)\n", 1, g.Min, g.Max, coords, string(val))
-
 	if x < g.Min || x > g.Max || len(g.Values) == 0 {
-		//fmt.Println("Realloc")
 		newMin := min(g.Min, x)
 		newMax := max(g.Max, x)
 		newSize := newMax - newMin + 1
@@ -147,8 +142,6 @@ func (g *Grid1D) Set(coords []int, val byte) {
 		g.Min = newMin
 		g.Max = newMax
 		g.Values = newValues
-
-		//fmt.Printf("Realloc Grid%dD, Min: %d, Max: %d, Size: %d, Set(%v, %s)\n", 1, g.Min, g.Max, newSize, coords, string(val))
 	}
 
 	g.Values[x-g.Min] = val
@@ -159,11 +152,9 @@ func (g *GridND) Set(coords []int, val byte) {
 		panic(fmt.Sprintf("wrong number of coords for Grid, need %d got %d", g.Dims, len(coords)))
 	}
 
-	//fmt.Printf("Grid%dD, Min: %d, Max: %d, Set(%v, %s)\n", g.Dims, g.Min, g.Max, coords, string(val))
 	first := coords[0]
 
 	if first < g.Min || first > g.Max || len(g.Values) == 0 {
-		//fmt.Println("Realloc")
 		newMin := min(g.Min, first)
 		newMax := max(g.Max, first)
 		newSize := newMax - newMin + 1
@@ -182,7 +173,6 @@ func (g *GridND) Set(coords []int, val byte) {
 		g.Min = newMin
 		g.Max = newMax
 		g.Values = newValues
-		//fmt.Printf("Realloc Grid%dD, Min: %d, Max: %d, Size: %d, Set(%v, %s)\n", g.Dims, g.Min, g.Max, newSize, coords, string(val))
 	}
 
 	g.Values[first-g.Min].Set(coords[1:], val)
@@ -205,10 +195,8 @@ func (g *GridND) Get(coords []int, defaultVal byte) byte {
 		panic(fmt.Sprintf("wrong number of coords for Grid, need %d got %d", g.Dims, len(coords)))
 	}
 
-	//fmt.Printf("Grid%dD, Min: %d, Max: %d, Get(%v, %s)\n", g.Dims, g.Min, g.Max, coords, string(defaultVal))
 	first := coords[0]
 	if first < g.Min || first > g.Max || len(g.Values) == 0 {
-		//fmt.Println("OOB")
 		return defaultVal
 	}
 	return g.Values[first-g.Min].Get(coords[1:], defaultVal)
