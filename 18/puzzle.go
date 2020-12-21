@@ -33,30 +33,14 @@ func doLines(filename string, do func(line string) error) error {
 
 type Operation struct {
 	Symbol string
-	// Higher value == higher priority == evaluated sooner
-	Priority int
-	Func     func(a, b int) int
+	Order  int // Lower order == evaluated sooner
+	Func   func(a, b int) int
 }
 
-var Operations map[rune]*Operation = map[rune]*Operation{
-	'+': &Operation{
-		Symbol:   "+",
-		Priority: 0,
-		Func: func(a, b int) int {
-			return a + b
-		},
-	},
-	'*': &Operation{
-		Symbol:   "*",
-		Priority: 0,
-		Func: func(a, b int) int {
-			return a * b
-		},
-	},
-}
+var Operations map[rune]*Operation = map[rune]*Operation{}
 
 type Node struct {
-	Priority     int
+	Order        int
 	Op           *Operation
 	Value        int
 	L, R, Parent *Node
@@ -73,6 +57,21 @@ func AddLeaf(newNode, current *Node) *Node {
 		}
 	}
 	newNode.Parent = current
+	return newNode
+}
+
+func ReplaceNode(newNode, replace *Node) *Node {
+	newNode.L = replace
+	newNode.Parent = replace.Parent
+	if replace.Parent != nil {
+		if replace.Parent.R == replace {
+			replace.Parent.R = newNode
+		} else {
+			replace.Parent.L = newNode
+		}
+	}
+	replace.Parent = newNode
+
 	return newNode
 }
 
@@ -99,23 +98,23 @@ func Parse(s string) (*Node, int) {
 				Value: n,
 			}
 
+			// A value node always starts as a leaf (an Operation might re-order it later)
 			current = AddLeaf(newNode, current)
 		} else if op, ok := Operations[r]; ok {
 			newNode := &Node{
 				Op: op,
 			}
 
-			// With LTR evaluation, the operation always goes at the
-			// root of the tree
-			for ; current.Parent != nil; current = current.Parent {
+			// Walk up the tree until we're at the root, or a later-order operation
+			for ; current.Parent != nil && newNode.Op.Order >= current.Parent.Op.Order; current = current.Parent {
+				continue
 			}
-
-			newNode.L = current
-			current.Parent = newNode
-			current = newNode
+			// Replace the node we landed at
+			current = ReplaceNode(newNode, current)
 		} else if strings.ContainsRune("(", r) {
 			newNode, di := Parse(s[i+1:])
 
+			// Parenthesised operations are always leaves (parentheses force early evaluation)
 			current = AddLeaf(newNode, current)
 
 			skipTo = i + di + 1
@@ -125,8 +124,9 @@ func Parse(s string) (*Node, int) {
 		}
 	}
 
-	// Return the root
+	// Walk back to the root
 	for ; current.Parent != nil; current = current.Parent {
+		continue
 	}
 
 	return current, i
@@ -149,6 +149,29 @@ func (n *Node) Eval() int {
 }
 
 func run() error {
+	// For Part 1, we just evaluate left-to-right, so multiplication and
+	// addition have the same precedence (0)
+	// For Part 2, addition comes first, so we increase multiplication
+	// Order to 1
+	mulOrder := 0
+	if len(os.Args) > 2 {
+		mulOrder = 1
+	}
+
+	Operations['+'] = &Operation{
+		Symbol: "+",
+		Order:  0,
+		Func: func(a, b int) int {
+			return a + b
+		},
+	}
+	Operations['*'] = &Operation{
+		Symbol: "*",
+		Order:  mulOrder,
+		Func: func(a, b int) int {
+			return a * b
+		},
+	}
 
 	result := 0
 	if err := doLines(os.Args[1], func(line string) error {
