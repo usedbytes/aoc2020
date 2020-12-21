@@ -31,28 +31,63 @@ func doLines(filename string, do func(line string) error) error {
 	return nil
 }
 
-type OpFunc func(a, b int) int
-
-func OpAdd(a, b int) int {
-	return a + b
+type Operation struct {
+	Symbol string
+	// Higher value == higher priority == evaluated sooner
+	Priority int
+	Func     func(a, b int) int
 }
 
-func OpMul(a, b int) int {
-	return a * b
+var Operations map[rune]*Operation = map[rune]*Operation{
+	'+': &Operation{
+		Symbol:   "+",
+		Priority: 0,
+		Func: func(a, b int) int {
+			return a + b
+		},
+	},
+	'*': &Operation{
+		Symbol:   "*",
+		Priority: 0,
+		Func: func(a, b int) int {
+			return a * b
+		},
+	},
 }
 
-func Eval(s string) (int, int) {
+type Node struct {
+	Priority     int
+	Op           *Operation
+	Value        int
+	L, R, Parent *Node
+}
+
+func AddLeaf(newNode, current *Node) *Node {
+	if current != nil {
+		if current.L == nil {
+			current.L = newNode
+		} else if current.R == nil {
+			current.R = newNode
+		} else {
+			panic("both children already assigned")
+		}
+	}
+	newNode.Parent = current
+	return newNode
+}
+
+func Parse(s string) (*Node, int) {
 	var (
-		op     OpFunc
-		args   []int
-		skipTo int
+		current   *Node
+		i, skipTo int
+		r         rune
 	)
-
-	for i, r := range s {
+	for i, r = range s {
 		if skipTo > i {
 			// Can't figure out if there's a better way to advance than this
 			continue
 		}
+
 		if unicode.IsDigit(r) {
 			toks := strings.SplitN(s[i:], " ", 2)
 			n, err := strconv.Atoi(strings.TrimRight(toks[0], ")"))
@@ -60,36 +95,66 @@ func Eval(s string) (int, int) {
 				panic(err)
 			}
 
-			args = append(args, n)
-		} else if strings.ContainsRune("+*", r) {
-			if r == '+' {
-				op = OpAdd
-			} else if r == '*' {
-				op = OpMul
-			} else {
-				panic(r)
+			newNode := &Node{
+				Value: n,
 			}
-		} else if strings.ContainsRune("(", r) {
-			n, di := Eval(s[i+1:])
-			skipTo = i + di + 1
-			args = append(args, n)
-		} else if strings.ContainsRune(")", r) {
-			return args[0], i + 1
-		}
 
-		if len(args) == 2 {
-			args[0] = op(args[0], args[1])
-			args = args[:1]
+			current = AddLeaf(newNode, current)
+		} else if op, ok := Operations[r]; ok {
+			newNode := &Node{
+				Op: op,
+			}
+
+			// With LTR evaluation, the operation always goes at the
+			// root of the tree
+			for ; current.Parent != nil; current = current.Parent {
+			}
+
+			newNode.L = current
+			current.Parent = newNode
+			current = newNode
+		} else if strings.ContainsRune("(", r) {
+			newNode, di := Parse(s[i+1:])
+
+			current = AddLeaf(newNode, current)
+
+			skipTo = i + di + 1
+		} else if strings.ContainsRune(")", r) {
+			i++
+			break
 		}
 	}
-	return args[0], len(s)
+
+	// Return the root
+	for ; current.Parent != nil; current = current.Parent {
+	}
+
+	return current, i
+}
+
+func (n *Node) String() string {
+	if n.Op == nil {
+		return fmt.Sprintf("%d", n.Value)
+	}
+
+	return fmt.Sprintf("(%s %s %s)", n.L.String(), n.Op.Symbol, n.R.String())
+}
+
+func (n *Node) Eval() int {
+	if n.Op == nil {
+		return n.Value
+	}
+
+	return n.Op.Func(n.L.Eval(), n.R.Eval())
 }
 
 func run() error {
 
 	result := 0
 	if err := doLines(os.Args[1], func(line string) error {
-		n, _ := Eval(line)
+		root, _ := Parse(line)
+		n := root.Eval()
+		fmt.Println("Eval", line, "->\n", root, "=", n)
 		result += n
 
 		return nil
