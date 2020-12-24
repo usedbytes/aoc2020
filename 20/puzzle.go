@@ -131,6 +131,19 @@ func (t *Tile) String() string {
 	return s
 }
 
+func Rotate90(image [][]byte) [][]byte {
+	size := len(image)
+	newImage := make([][]byte, size)
+	for y := 0; y < size; y++ {
+		newRow := make([]byte, size)
+		for x := 0; x < size; x++ {
+			newRow[x] = image[x][size-y-1]
+		}
+		newImage[y] = newRow
+	}
+	return newImage
+}
+
 func (t *Tile) Rotate90() {
 	t.Borders[0], t.Borders[1], t.Borders[2], t.Borders[3] =
 		t.Borders[1], t.Borders[2], t.Borders[3], t.Borders[0]
@@ -141,16 +154,20 @@ func (t *Tile) Rotate90() {
 	// It would be much more efficient to just store a transform and
 	// then have a Content accessor that reads out with the right transform
 	// But this is easier to think about
-	csize := len(t.Content)
-	newContent := make([][]byte, csize)
-	for y := 0; y < csize; y++ {
-		newRow := make([]byte, csize)
-		for x := 0; x < csize; x++ {
-			newRow[x] = t.Content[x][csize-y-1]
+	t.Content = Rotate90(t.Content)
+}
+
+func HFlip(image [][]byte) [][]byte {
+	size := len(image)
+	newImage := make([][]byte, size)
+	for y := 0; y < size; y++ {
+		newRow := make([]byte, size)
+		for x := 0; x < size; x++ {
+			newRow[x] = image[y][size-x-1]
 		}
-		newContent[y] = newRow
+		newImage[y] = newRow
 	}
-	t.Content = newContent
+	return newImage
 }
 
 func (t *Tile) HFlip() {
@@ -168,16 +185,7 @@ func (t *Tile) HFlip() {
 	// It would be much more efficient to just store a transform and
 	// then have a Content accessor that reads out with the right transform
 	// But this is easier to think about
-	csize := len(t.Content)
-	newContent := make([][]byte, csize)
-	for y := 0; y < csize; y++ {
-		newRow := make([]byte, csize)
-		for x := 0; x < csize; x++ {
-			newRow[x] = t.Content[y][csize-x-1]
-		}
-		newContent[y] = newRow
-	}
-	t.Content = newContent
+	t.Content = HFlip(t.Content)
 }
 
 func (t *Tile) NumNeighbours() int {
@@ -185,6 +193,42 @@ func (t *Tile) NumNeighbours() int {
 	for _, nid := range t.Neighbours {
 		if nid != 0 {
 			count++
+		}
+	}
+	return count
+}
+
+func SearchFor(monster [][]byte, image [][]byte, match, replace byte) int {
+	count := 0
+	for y := 0; y < len(image)-len(monster); y++ {
+		for x := 0; x < len(image[0])-len(monster[0]); x++ {
+			found := true
+			for my := 0; my < len(monster); my++ {
+				imgRow := image[y+my]
+				monsterRow := monster[my]
+				for mx := 0; mx < len(monsterRow); mx++ {
+					if monsterRow[mx] == match && imgRow[x+mx] != match {
+						found = false
+						break
+					}
+				}
+				if !found {
+					break
+				}
+			}
+			if found {
+				// Found one, mark it
+				count++
+				for my := 0; my < len(monster); my++ {
+					imgRow := image[y+my]
+					monsterRow := monster[my]
+					for mx := 0; mx < len(monsterRow); mx++ {
+						if monsterRow[mx] == match {
+							imgRow[x+mx] = replace
+						}
+					}
+				}
+			}
 		}
 	}
 	return count
@@ -324,20 +368,20 @@ func run() error {
 		xform(t)
 	}
 
-	imgSize := int(math.Sqrt(float64(len(tiles))))
-	image := make([][]*Tile, imgSize)
-	for y := 0; y < imgSize; y++ {
-		image[y] = make([]*Tile, imgSize)
+	tileImgSize := int(math.Sqrt(float64(len(tiles))))
+	tileImage := make([][]*Tile, tileImgSize)
+	for y := 0; y < tileImgSize; y++ {
+		tileImage[y] = make([]*Tile, tileImgSize)
 	}
-	image[0][0] = t
+	tileImage[0][0] = t
 
 	// Then work through, transforming each neighbour until it fits
-	for y := 0; y < len(image); y++ {
-		for x := 0; x < len(image[0]); x++ {
-			if image[y][x] == nil {
+	for y := 0; y < len(tileImage); y++ {
+		for x := 0; x < len(tileImage[0]); x++ {
+			if tileImage[y][x] == nil {
 				panic(fmt.Sprintln("not assigned yet", x, y))
 			}
-			t = image[y][x]
+			t = tileImage[y][x]
 
 			for i, nid := range t.Neighbours {
 				if nid == 0 {
@@ -348,7 +392,7 @@ func run() error {
 				nx, ny := x+dx[i], y+dy[i]
 				opp := opposites[i]
 
-				if image[ny][nx] != nil {
+				if tileImage[ny][nx] != nil {
 					// Neighbour already assigned, just check it is OK
 					if t.Borders[i].Pattern != n.Borders[opp].ReversePattern {
 						panic(fmt.Sprintf("neighbour not matching, %d side %d -> %d side %d", t.ID, i, n.ID, opp))
@@ -364,42 +408,61 @@ func run() error {
 					if t.Borders[i].Pattern != n.Borders[opp].ReversePattern {
 						panic("not matching after all possible transforms")
 					}
-					image[ny][nx] = n
+					tileImage[ny][nx] = n
 				}
 			}
 		}
 	}
 
-	for y := 0; y < len(image); y++ {
+	// Now we have an image of tiles, generate a straightforward raster image
+	image := make([][]byte, tileImgSize*(tileSize-2))
+	for y := 0; y < len(tileImage); y++ {
 		for ty := 0; ty < tileSize-2; ty++ {
-			for x := 0; x < len(image[0]); x++ {
-				t := image[y][x]
+			image[y*(tileSize-2)+ty] = make([]byte, tileImgSize*(tileSize-2))
+			for x := 0; x < len(tileImage[0]); x++ {
+				t := tileImage[y][x]
 				for tx := 0; tx < tileSize-2; tx++ {
-					fmt.Printf("%s", string(t.Content[ty][tx]))
+					image[y*(tileSize-2)+ty][x*(tileSize-2)+tx] = t.Content[ty][tx]
 				}
-				fmt.Printf(" ")
 			}
-			fmt.Println("")
 		}
-		fmt.Println("")
 	}
 
-	/*
-		fmt.Println(t)
-		for i, nid := range t.Neighbours {
-			n := tiles[nid]
-			opp := opposites[i]
-			for _, xform := range transforms {
-				if t.Borders[i].Pattern == n.Borders[opp].Pattern {
-					break
-				}
-				xform(n)
-			}
-			image[y+dy[i]][x+dx[i]] = n
-			fmt.Println("Neighbour", i)
-			fmt.Println(n)
+	imgTransforms := []func([][]byte) [][]byte{
+		func(img [][]byte) [][]byte { return Rotate90(img) },
+		func(img [][]byte) [][]byte { return Rotate90(img) },
+		func(img [][]byte) [][]byte { return Rotate90(img) },
+		func(img [][]byte) [][]byte { return HFlip(img) },
+		func(img [][]byte) [][]byte { return Rotate90(img) },
+		func(img [][]byte) [][]byte { return Rotate90(img) },
+		func(img [][]byte) [][]byte { return Rotate90(img) },
+		// Hax: Just to make sure we run the search on all orientations
+		func(img [][]byte) [][]byte { return img },
+	}
+	monster := [][]byte{
+		[]byte("                  # "),
+		[]byte("#    ##    ##    ###"),
+		[]byte(" #  #  #  #  #  #   "),
+	}
+	for _, xform := range imgTransforms {
+		count := SearchFor(monster, image, '#', 'O')
+		if count > 0 {
+			fmt.Println("Found", count, "monsters")
+			break
 		}
-	*/
+		image = xform(image)
+	}
+
+	count := 0
+	for y := 0; y < len(image); y++ {
+		for x := 0; x < len(image[y]); x++ {
+			if image[y][x] == '#' {
+				count++
+			}
+		}
+		fmt.Println(string(image[y]))
+	}
+	fmt.Println("Roughness:", count)
 
 	return nil
 }
