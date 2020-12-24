@@ -82,6 +82,9 @@ type Tile struct {
 
 	Neighbours [4]int
 	Content    [][]byte
+
+	Orientation int
+	Flip        bool
 }
 
 func (t *Tile) String() string {
@@ -134,6 +137,20 @@ func (t *Tile) Rotate90() {
 
 	t.Neighbours[0], t.Neighbours[1], t.Neighbours[2], t.Neighbours[3] =
 		t.Neighbours[1], t.Neighbours[2], t.Neighbours[3], t.Neighbours[0]
+
+	// It would be much more efficient to just store a transform and
+	// then have a Content accessor that reads out with the right transform
+	// But this is easier to think about
+	csize := len(t.Content)
+	newContent := make([][]byte, csize)
+	for y := 0; y < csize; y++ {
+		newRow := make([]byte, csize)
+		for x := 0; x < csize; x++ {
+			newRow[x] = t.Content[x][csize-y-1]
+		}
+		newContent[y] = newRow
+	}
+	t.Content = newContent
 }
 
 func (t *Tile) HFlip() {
@@ -147,6 +164,20 @@ func (t *Tile) HFlip() {
 
 	t.Neighbours[1], t.Neighbours[3] =
 		t.Neighbours[3], t.Neighbours[1]
+
+	// It would be much more efficient to just store a transform and
+	// then have a Content accessor that reads out with the right transform
+	// But this is easier to think about
+	csize := len(t.Content)
+	newContent := make([][]byte, csize)
+	for y := 0; y < csize; y++ {
+		newRow := make([]byte, csize)
+		for x := 0; x < csize; x++ {
+			newRow[x] = t.Content[y][csize-x-1]
+		}
+		newContent[y] = newRow
+	}
+	t.Content = newContent
 }
 
 func (t *Tile) NumNeighbours() int {
@@ -175,7 +206,6 @@ func run() error {
 	var tileSize int
 	var borders [4]string
 	if err := doLines(os.Args[1], func(line string) error {
-		fmt.Println(line)
 		if len(line) == 0 {
 			tile.Borders = make([]*Border, 4)
 			for i, b := range borders {
@@ -185,7 +215,6 @@ func run() error {
 				borders[i] = ""
 			}
 			tiles[tile.ID] = tile
-			fmt.Println(tile)
 			tile = nil
 			tileLine = 0
 
@@ -292,7 +321,6 @@ func run() error {
 		if east != 0 && south != 0 {
 			break
 		}
-		fmt.Println("Transform")
 		xform(t)
 	}
 
