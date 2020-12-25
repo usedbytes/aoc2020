@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"hash/maphash"
 	"os"
 	"strconv"
 	"strings"
@@ -50,27 +49,65 @@ func Score(list []int) int {
 
 type Game struct {
 	Player1, Player2 []int
-	PreviousStates   map[[2]uint64]bool
-	Hash             *maphash.Hash
+	PreviousStates   map[[2]string]bool
 	Recursive        bool
 }
 
-func (g *Game) Turn() bool {
-	var a, b int
-	a, g.Player1 = Pop(g.Player1)
-	b, g.Player2 = Pop(g.Player2)
+func (g *Game) Play() int {
+	for (len(g.Player1) > 0) && (len(g.Player2) > 0) {
+		if g.Recursive {
+			strings := [2]string{
+				fmt.Sprintf("%v", g.Player1),
+				fmt.Sprintf("%v", g.Player2),
+			}
 
-	// Assumes there's never a duplicate card. The rules don't specify
-	// that case
-	if a > b {
-		g.Player1 = PushBack(g.Player1, a)
-		g.Player1 = PushBack(g.Player1, b)
-	} else {
-		g.Player2 = PushBack(g.Player2, b)
-		g.Player2 = PushBack(g.Player2, a)
+			if _, ok := g.PreviousStates[strings]; ok {
+				// The game instantly ends with a win for player 1
+				return 1
+			}
+
+			g.PreviousStates[strings] = true
+		}
+
+		var a, b int
+		a, g.Player1 = Pop(g.Player1)
+		b, g.Player2 = Pop(g.Player2)
+
+		turnWinner := 0
+		recurse := false
+		if g.Recursive && (len(g.Player1) >= a) && (len(g.Player2) >= b) {
+			recurse = true
+		}
+
+		if recurse {
+			subGame := NewGame(g.Player1[:a], g.Player2[:b], true)
+			turnWinner = subGame.Play()
+		} else {
+			// Assumes there's never a duplicate card. The rules don't specify
+			// that case
+			if a > b {
+				turnWinner = 1
+			} else {
+				turnWinner = 2
+			}
+		}
+
+		if turnWinner == 1 {
+			g.Player1 = PushBack(g.Player1, a)
+			g.Player1 = PushBack(g.Player1, b)
+		} else if turnWinner == 2 {
+			g.Player2 = PushBack(g.Player2, b)
+			g.Player2 = PushBack(g.Player2, a)
+		} else {
+			panic("nobody won")
+		}
 	}
 
-	return !((len(g.Player1) == 0) || (len(g.Player2) == 0))
+	if len(g.Player1) > 0 {
+		return 1
+	}
+
+	return 2
 }
 
 func (g *Game) Scores() (int, int) {
@@ -78,14 +115,10 @@ func (g *Game) Scores() (int, int) {
 }
 
 func NewGame(player1, player2 []int, recursive bool) *Game {
-	if recursive {
-		panic("recursive not implemented")
-	}
-
 	g := &Game{
 		Player1:        make([]int, len(player1)),
 		Player2:        make([]int, len(player2)),
-		PreviousStates: make(map[[2]uint64]bool),
+		PreviousStates: make(map[[2]string]bool),
 		Recursive:      recursive,
 	}
 	copy(g.Player1, player1)
@@ -97,6 +130,8 @@ func NewGame(player1, player2 []int, recursive bool) *Game {
 func run() error {
 	hands := [][]int{}
 	var hand []int
+
+	recursive := len(os.Args) > 2
 
 	if err := doLines(os.Args[1], func(line string) error {
 		if len(line) == 0 {
@@ -129,15 +164,12 @@ func run() error {
 		hand = []int{}
 	}
 
-	g := NewGame(hands[0], hands[1], false)
-
-	for g.Turn() {
-		// Keep going
-	}
+	g := NewGame(hands[0], hands[1], recursive)
+	winner := g.Play()
 
 	score1, score2 := g.Scores()
 
-	fmt.Println(score1, score2)
+	fmt.Println(winner, score1, score2)
 
 	return nil
 }
