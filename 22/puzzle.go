@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"hash/maphash"
 	"os"
 	"strconv"
 	"strings"
@@ -47,6 +48,52 @@ func Score(list []int) int {
 	return score
 }
 
+type Game struct {
+	Player1, Player2 []int
+	PreviousStates   map[[2]uint64]bool
+	Hash             *maphash.Hash
+	Recursive        bool
+}
+
+func (g *Game) Turn() bool {
+	var a, b int
+	a, g.Player1 = Pop(g.Player1)
+	b, g.Player2 = Pop(g.Player2)
+
+	// Assumes there's never a duplicate card. The rules don't specify
+	// that case
+	if a > b {
+		g.Player1 = PushBack(g.Player1, a)
+		g.Player1 = PushBack(g.Player1, b)
+	} else {
+		g.Player2 = PushBack(g.Player2, b)
+		g.Player2 = PushBack(g.Player2, a)
+	}
+
+	return !((len(g.Player1) == 0) || (len(g.Player2) == 0))
+}
+
+func (g *Game) Scores() (int, int) {
+	return Score(g.Player1), Score(g.Player2)
+}
+
+func NewGame(player1, player2 []int, recursive bool) *Game {
+	if recursive {
+		panic("recursive not implemented")
+	}
+
+	g := &Game{
+		Player1:        make([]int, len(player1)),
+		Player2:        make([]int, len(player2)),
+		PreviousStates: make(map[[2]uint64]bool),
+		Recursive:      recursive,
+	}
+	copy(g.Player1, player1)
+	copy(g.Player2, player2)
+
+	return g
+}
+
 func run() error {
 	hands := [][]int{}
 	var hand []int
@@ -82,28 +129,15 @@ func run() error {
 		hand = []int{}
 	}
 
-	rounds := 0
-	for len(hands[0]) > 0 && len(hands[1]) > 0 {
-		var a, b int
-		a, hands[0] = Pop(hands[0])
-		b, hands[1] = Pop(hands[1])
+	g := NewGame(hands[0], hands[1], false)
 
-		if a > b {
-			hands[0] = PushBack(hands[0], a)
-			hands[0] = PushBack(hands[0], b)
-		} else {
-			hands[1] = PushBack(hands[1], b)
-			hands[1] = PushBack(hands[1], a)
-		}
-		rounds++
+	for g.Turn() {
+		// Keep going
 	}
 
-	winner := hands[0]
-	if len(winner) == 0 {
-		winner = hands[1]
-	}
+	score1, score2 := g.Scores()
 
-	fmt.Println(Score(winner))
+	fmt.Println(score1, score2)
 
 	return nil
 }
