@@ -108,10 +108,22 @@ func Find(list *Node, value int) *Node {
 
 func run() error {
 	input := os.Args[1]
+	part2 := len(os.Args) > 2
+
+	// Assume min is 1 and max is len(input) (or 1000000 for Part 2)
+	minVal := 1
+	maxVal := len(input)
+	numMoves := 100
+	if part2 {
+		maxVal = 1000000
+		numMoves = 10000000
+	}
 
 	var head, tail *Node
 
 	cups := make([]int, len(input))
+	// lut maps from Value (index) to a *Node, for O(1) lookups
+	lut := make([]*Node, maxVal+1)
 	for i := range input {
 		n, err := strconv.Atoi(input[i : i+1])
 		if err != nil {
@@ -128,40 +140,28 @@ func run() error {
 		} else {
 			tail.Next = node
 		}
+		lut[n] = node
 		tail = node
 	}
-	numCups := len(cups)
-	minVal := min(cups)
-	maxVal := max(cups)
 
-	maxNum := 1000000
-	numMoves := 10000000
-
-	for i := maxVal+1; i <= maxNum; i++ {
+	// Pad out the list if we need to
+	for i := len(input) + 1; i <= maxVal; i++ {
 		node := &Node{
 			Prev:  tail,
 			Next:  nil,
 			Value: i,
 		}
+		lut[node.Value] = node
 		tail.Next = node
 		tail = node
-		numCups++
 	}
-	maxVal = numCups
 
+	// Loop the list to itself, so now we have a ring
 	tail.Next = head
 	head.Prev = tail
 
+	// Start with the first cup
 	current := head
-
-	//fmt.Println("current:", current.Value, "prev:", current.Prev.Value)
-
-	//lastSearchLen := 0
-
-	window := 100
-
-	//PrintN(head, 20)
-	//PrintN(tail, 20)
 
 	for move := 0; move < numMoves; move++ {
 		var destination *Node
@@ -183,55 +183,22 @@ func run() error {
 			}
 		}
 
-		//fmt.Println("Looking for", destinationVal)
+		// Look up the destination cup
+		destination = lut[destinationVal]
 
-		found := false
-		lower, upper := current, current
-		for !found {
-			cursor := lower
-			for i := 0; i < window; i++ {
-				//fmt.Println(cursor.Value)
-				if cursor.Value == destinationVal {
-					destination = cursor
-					found = true
-					//fmt.Println("Searched", i)
-					break
-				}
-				cursor = cursor.Prev
-				lower = cursor
-			}
-			cursor = upper
-			for i := 0; !found && i < window; i++ {
-				//fmt.Println(cursor.Value)
-				if cursor.Value == destinationVal {
-					destination = cursor
-					found = true
-					//fmt.Println("Searched", i)
-					break
-				}
-				cursor = cursor.Next
-				upper = cursor
-			}
-			if !found {
-				//fmt.Println("Not found. Expanding window", window, window * 2)
-				window *= 2
-				if window > numCups/2 {
-					window = numCups/2
-				}
-			}
-		}
+		// Insert the removed cups
 		Insert(destination, removed)
-		current = current.Next
 
-		if move % 1000 == 0 {
-			fmt.Println(move)
-			PrintN(current, 20)
-		}
+		// Move on
+		current = current.Next
 	}
 
-	//Print(current, current)
-	one := Find(current, 1)
-	PrintN(one, 10)
+	one := lut[1]
+	if !part2 {
+		Print(one, current)
+	} else {
+		fmt.Println(one.Next.Value * one.Next.Next.Value)
+	}
 
 	return nil
 }
