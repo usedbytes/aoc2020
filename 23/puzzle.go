@@ -75,6 +75,37 @@ func Print(list, current *Node) {
 	fmt.Println("")
 }
 
+func PrintN(list *Node, n int) {
+	cursor := list
+	for i := 0; i < n; i++ {
+		fmt.Printf("  %d  ", cursor.Value)
+		cursor = cursor.Next
+
+		if cursor == nil || cursor == list {
+			break
+		}
+	}
+	fmt.Println("")
+}
+
+func Find(list *Node, value int) *Node {
+	cursor := list
+	for {
+		if cursor.Value == value {
+			break
+		}
+
+		cursor = cursor.Next
+
+		if cursor == nil || cursor == list {
+			cursor = nil
+			break
+		}
+	}
+
+	return cursor
+}
+
 func run() error {
 	input := os.Args[1]
 
@@ -99,44 +130,108 @@ func run() error {
 		}
 		tail = node
 	}
-	tail.Next = head
-	head.Prev = tail
-
-	Print(head, head)
-
+	numCups := len(cups)
 	minVal := min(cups)
 	maxVal := max(cups)
 
+	maxNum := 1000000
+	numMoves := 10000000
+
+	for i := maxVal+1; i <= maxNum; i++ {
+		node := &Node{
+			Prev:  tail,
+			Next:  nil,
+			Value: i,
+		}
+		tail.Next = node
+		tail = node
+		numCups++
+	}
+	maxVal = numCups
+
+	tail.Next = head
+	head.Prev = tail
+
 	current := head
 
-	for move := 0; move < 100; move++ {
+	//fmt.Println("current:", current.Value, "prev:", current.Prev.Value)
+
+	//lastSearchLen := 0
+
+	window := 100
+
+	//PrintN(head, 20)
+	//PrintN(tail, 20)
+
+	for move := 0; move < numMoves; move++ {
 		var destination *Node
 		removed := Remove(current, 3)
 		destinationVal := current.Value - 1
+		if destinationVal < minVal {
+			destinationVal = maxVal
+		}
 
-		found := false
-		for !found {
-			cursor := current
-			for i := 0; i < len(cups)-3; i++ {
-				if cursor.Value == destinationVal {
-					destination = cursor
-					found = true
-					break
-				}
-				cursor = cursor.Next
-			}
-			if !found {
+		// Check if the value we're looking for is in the _short_ list
+		inRemoved := removed
+		for inRemoved != nil {
+			inRemoved = Find(removed, destinationVal)
+			if inRemoved != nil {
 				destinationVal--
 				if destinationVal < minVal {
 					destinationVal = maxVal
 				}
 			}
 		}
+
+		//fmt.Println("Looking for", destinationVal)
+
+		found := false
+		lower, upper := current, current
+		for !found {
+			cursor := lower
+			for i := 0; i < window; i++ {
+				//fmt.Println(cursor.Value)
+				if cursor.Value == destinationVal {
+					destination = cursor
+					found = true
+					//fmt.Println("Searched", i)
+					break
+				}
+				cursor = cursor.Prev
+				lower = cursor
+			}
+			cursor = upper
+			for i := 0; !found && i < window; i++ {
+				//fmt.Println(cursor.Value)
+				if cursor.Value == destinationVal {
+					destination = cursor
+					found = true
+					//fmt.Println("Searched", i)
+					break
+				}
+				cursor = cursor.Next
+				upper = cursor
+			}
+			if !found {
+				//fmt.Println("Not found. Expanding window", window, window * 2)
+				window *= 2
+				if window > numCups/2 {
+					window = numCups/2
+				}
+			}
+		}
 		Insert(destination, removed)
 		current = current.Next
+
+		if move % 1000 == 0 {
+			fmt.Println(move)
+			PrintN(current, 20)
+		}
 	}
 
-	Print(current, current)
+	//Print(current, current)
+	one := Find(current, 1)
+	PrintN(one, 10)
 
 	return nil
 }
