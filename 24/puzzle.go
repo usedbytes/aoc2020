@@ -79,6 +79,48 @@ func doLines(filename string, do func(line string) error) error {
 	return nil
 }
 
+func PrintAll(lobby map[[2]int]bool) {
+	min := [2]int{1000000, 1000000}
+	max := [2]int{-1000000, -1000000}
+	for k, _ := range lobby {
+		if k[0] < min[0] {
+			min[0] = k[0]
+		}
+		if k[1] < min[1] {
+			min[1] = k[1]
+		}
+		if k[0] > max[0] {
+			max[0] = k[0]
+		}
+		if k[1] > max[1] {
+			max[1] = k[1]
+		}
+	}
+
+	Print(min, max, [2]int{0, 0}, lobby)
+}
+
+func Print(min, max, mark [2]int, lobby map[[2]int]bool) {
+	fmt.Println(min, "->", max)
+	for y := min[1]; y <= max[1]; y++ {
+		if y%2 == 0 {
+			fmt.Print("       ")
+		}
+		for x := min[0]; x <= max[0]; x++ {
+			marker := "O"
+			if lobby[[2]int{x, y}] == true {
+				marker = "X"
+			}
+			if x == mark[0] && y == mark[1] {
+				fmt.Printf("    (%s)     ", marker)
+			} else {
+				fmt.Printf("  (%2d,%2d)%s  ", x, y, marker)
+			}
+		}
+		fmt.Println("\n")
+	}
+}
+
 func CountNeighbours(floor map[[2]int]bool, coord [2]int, black bool) int {
 	count := 0
 	for _, dxdys := range dirs {
@@ -88,8 +130,7 @@ func CountNeighbours(floor map[[2]int]bool, coord [2]int, black bool) int {
 			dxdy = dxdys[1]
 		}
 
-		neighbour := [2]int{coord[0]+dxdy[0], coord[1]+dxdy[1]}
-		//fmt.Println("Neighbour", neighbour, floor[neighbour])
+		neighbour := [2]int{coord[0] + dxdy[0], coord[1] + dxdy[1]}
 		if floor[neighbour] == black {
 			count++
 		}
@@ -98,29 +139,26 @@ func CountNeighbours(floor map[[2]int]bool, coord [2]int, black bool) int {
 	return count
 }
 
-func ScanAndFlip(floor map[[2]int]bool) map[[2]int]bool{
+func ScanAndFlip(floor map[[2]int]bool) map[[2]int]bool {
 	visited := map[[2]int]bool{}
 	newFloor := map[[2]int]bool{}
 
 	for coord, black := range floor {
+		if !black {
+			continue
+		}
+
 		if visited[coord] {
 			continue
 		}
 		visited[coord] = true
 
-		if !black {
-			continue
-		}
-
 		// Count adjacent, if 0 or >2, flip
-		//fmt.Println("black coord", coord)
 		numBlack := CountNeighbours(floor, coord, true)
-		//fmt.Println("coord", coord, "numBlack", numBlack)
 		if !((numBlack == 0) || (numBlack > 2)) {
 			// Stays black
 			newFloor[coord] = true
 		} // else - don't add white tiles to newFloor
-
 
 		// Then visit all the non-visited adjacent ones, to see
 		// if they're white. We're only interested in white tiles
@@ -132,7 +170,13 @@ func ScanAndFlip(floor map[[2]int]bool) map[[2]int]bool{
 				dxdy = dxdys[1]
 			}
 
-			neighbour := [2]int{coord[0]+dxdy[0], coord[1]+dxdy[1]}
+			neighbour := [2]int{coord[0] + dxdy[0], coord[1] + dxdy[1]}
+
+			black := floor[neighbour]
+			// Skip if black
+			if black {
+				continue
+			}
 
 			if visited[neighbour] {
 				// Skip if already visited
@@ -140,17 +184,8 @@ func ScanAndFlip(floor map[[2]int]bool) map[[2]int]bool{
 			}
 			visited[neighbour] = true
 
-			black := floor[neighbour]
-
-			// Skip if black
-			if black {
-				continue
-			}
-
 			// If white, check the white rules
-			//fmt.Println("white neighbour", neighbour)
 			numBlack := CountNeighbours(floor, neighbour, true)
-			//fmt.Println("neighbour", neighbour, "numBlack", numBlack)
 			if numBlack == 2 {
 				newFloor[neighbour] = true
 			} // else - don't add white tiles to newFloor
@@ -175,6 +210,7 @@ func run() error {
 				if strings.HasPrefix(line, k) {
 					coord[0], coord[1] = coord[0]+v[0], coord[1]+v[1]
 					line = line[len(k):]
+					break
 				}
 			}
 		}
@@ -195,15 +231,15 @@ func run() error {
 
 	for day := 0; day < 100; day++ {
 		lobby = ScanAndFlip(lobby)
-
-		count := 0
-		for _, v := range lobby {
-			if v {
-				count++
-			}
-		}
-		fmt.Println("Day", day+1, count)
 	}
+
+	count = 0
+	for _, v := range lobby {
+		if v {
+			count++
+		}
+	}
+	fmt.Println("Part2:", count)
 
 	return nil
 }
